@@ -1319,6 +1319,7 @@ function drop(){
   createPiece(state.current, aimX, DROP_Y, { vy:-2.5 });
   markAchieved(state.current);
   SFX.drop();
+  try{ navigator.vibrate && navigator.vibrate(8); }catch(_){}
   state.current=state.next;
   state.next=genNext();
   refreshNextUI();
@@ -1334,13 +1335,33 @@ function pointerToWorldX(clientX, clientY){
   const t=-rayC.ray.origin.z/rayC.ray.direction.z;
   return rayC.ray.origin.x + rayC.ray.direction.x*t;
 }
-renderer.domElement.addEventListener('pointermove', e=>{
-  aimX=clampAim(pointerToWorldX(e.clientX,e.clientY));
-});
-renderer.domElement.addEventListener('pointerdown', e=>{
+/* 拖动瞄准、松手投放：按下不落子，只有抬起手指（或点一下）才落子 */
+const canvasEl=renderer.domElement;
+let dragId=null;
+function aimAt(clientX, clientY){
+  aimX=clampAim(pointerToWorldX(clientX, clientY));
+}
+canvasEl.addEventListener('pointerdown', e=>{
   SFX.unlock();
-  aimX=clampAim(pointerToWorldX(e.clientX,e.clientY));
+  if(state.mode!=='playing') return;
+  dragId=e.pointerId;
+  try{ canvasEl.setPointerCapture(e.pointerId); }catch(_){}
+  aimAt(e.clientX, e.clientY);
+  e.preventDefault();
+}, { passive:false });
+canvasEl.addEventListener('pointermove', e=>{
+  if(dragId!==null && e.pointerId!==dragId) return;
+  aimAt(e.clientX, e.clientY);
+}, { passive:true });
+canvasEl.addEventListener('pointerup', e=>{
+  if(dragId===null || e.pointerId!==dragId) return;
+  dragId=null;
+  try{ canvasEl.releasePointerCapture(e.pointerId); }catch(_){}
+  aimAt(e.clientX, e.clientY);
   drop();
+});
+canvasEl.addEventListener('pointercancel', e=>{
+  if(dragId!==null && e.pointerId===dragId) dragId=null;
 });
 addEventListener('keydown', e=>{
   if(state.mode!=='playing') return;

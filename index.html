@@ -382,6 +382,8 @@ const MAX_LEVEL = LEVELS.length - 1;      // 10 = 神奶蛙
 const SPAWN_TIERS = [0,1,2,3,4];          // 可投放等级
 const SPAWN_W = [0.28,0.24,0.20,0.16,0.12];
 const ASSET_FILL = 0.92;                  // 贴图主体占画布比例 → 视觉尺寸 = 2r/0.92
+/* 每级素材的「可见宽度」占画布比例（按 alpha 包围盒实测），用于让碰撞圆贴合画面 */
+const ART_W = [0.842,0.760,0.853,0.895,0.882,0.944,0.787,0.960,0.985,0.841,0.584];
 
 const HALF_W = 5, FLOOR_Y = 0, LINE_Y = 10.6, DROP_Y = 12.0;
 const GRAVITY = -22;
@@ -720,8 +722,8 @@ world.gravity.set(0,GRAVITY,0);
 world.broadphase=new CANNON.SAPBroadphase(world);
 world.allowSleep=true;
 const physMat=new CANNON.Material('milk');
-world.addContactMaterial(new CANNON.ContactMaterial(physMat,physMat,{ friction:0.35, restitution:0.12 }));
-world.defaultContactMaterial.friction=0.35;
+world.addContactMaterial(new CANNON.ContactMaterial(physMat,physMat,{ friction:0.30, restitution:0.12 }));
+world.defaultContactMaterial.friction=0.30;
 world.defaultContactMaterial.restitution=0.12;
 
 function addWall(x,y,z,ex,ey,ez){
@@ -774,6 +776,9 @@ LEVELS.forEach((_,i)=>{ getCharMat(i); getGhostMat(i); });
 
 /* 棋子视觉尺寸（贴图边长）：主体填满 2r 圆 */
 const sprSize=lvl=>LEVELS[lvl].r*2/ASSET_FILL;
+/* 碰撞圆贴合可见轮廓：窄高的素材不该占满整个圆，否则看起来「明明有空间却被挡住」 */
+const artRatio=lvl=>ART_W[lvl]/ASSET_FILL;
+const bodyR=lvl=>LEVELS[lvl].r*clamp(artRatio(lvl),0.74,1.0);
 
 /* 落地软阴影（让贴图有体积感） */
 const shadowTex=(()=>{
@@ -1150,9 +1155,11 @@ function createPiece(lvl, x, y, { vy=0, pop=false }={}){
   sh.scale.setScalar(conf.r*2.1);
   scene.add(sh);
 
+  const rp=bodyR(lvl);                        // 碰撞半径：贴合可见宽度
+  const pad=Math.max(0, artRatio(lvl)-1)*conf.r; // 画面比碰撞圆还宽时，接触判定要放宽，才不会「碰上了却不合成」
   const body=new CANNON.Body({
-    mass: conf.r*conf.r,
-    shape: new CANNON.Sphere(conf.r),
+    mass: rp*rp,
+    shape: new CANNON.Sphere(rp),
     material: physMat,
     position: new CANNON.Vec3(x,y,0),
     angularFactor: new CANNON.Vec3(0,0,1),
@@ -1166,7 +1173,7 @@ function createPiece(lvl, x, y, { vy=0, pop=false }={}){
   body.angularVelocity.set(0,0,rand(-0.9,0.9));
   world.addBody(body);
 
-  const piece={ id:uid++, body, mesh, charRoot, shadow:sh, size, zOff, r:conf.r, lvl, born:gameTime, dead:false,
+  const piece={ id:uid++, body, mesh, charRoot, shadow:sh, size, zOff, r:conf.r, rp, pad, lvl, born:gameTime, dead:false,
     squashT:0, prevVy:0 };
   body.userData={ piece };
   body.addEventListener('collide', e=>onCollide(piece, e.body));
@@ -1196,6 +1203,28 @@ function onCollide(p, otherBody){
   mergeQueue.push([p,q]);
 }
 
+/* 兜底检测：每帧按「可见接触」判断同级棋子是否该合成。
+   物理引擎的 collide 事件只在接触开始那一瞬触发，沉睡/持续贴合时不会再来，
+   所以画面看着已经贴上了却没合成。这里用胶囊式距离（半径+视觉外扩）补齐。 */
+function scanMerges(){
+  const n=bodies.length;
+  for(let i=0;i<n;i++){
+    const a=bodies[i];
+    if(a.dead) continue;
+    for(let j=i+1;j<n;j++){
+      const b=bodies[j];
+      if(b.dead || b.lvl!==a.lvl) continue;
+      const dx=a.body.position.x-b.body.position.x;
+      const dy=a.body.position.y-b.body.position.y;
+      const lim=a.rp+b.rp+a.pad+b.pad+0.04;
+      if(dx*dx+dy*dy>lim*lim) continue;
+      const k=a.id<b.id? a.id+':'+b.id : b.id+':'+a.id;
+      if(mergeSet.has(k)) continue;
+      mergeSet.add(k);
+      mergeQueue.push([a,b]);
+    }
+  }
+}
 function processMerges(){
   if(!mergeQueue.length) return;
   for(const [p,q] of mergeQueue){
@@ -1634,6 +1663,7 @@ function tick(){
       p.body.position.z=0;
       p.body.velocity.z=0;
     }
+    scanMerges();
     processMerges();
     // 同步网格：用物理插值位置 → 120Hz 屏幕上也不会一顿一顿
     for(const p of bodies){

@@ -763,7 +763,7 @@ function getCharMat(lvl){
 function getGhostMat(lvl){
   if(!ghostMatCache[lvl]){
     ghostMatCache[lvl]=new THREE.MeshBasicMaterial({
-      map:getCharTexture(lvl), transparent:true, opacity:0.6,
+      map:getCharTexture(lvl), transparent:true, opacity:0.97, alphaTest:0.04,
       depthWrite:false, toneMapped:false,
     });
   }
@@ -1157,13 +1157,13 @@ function createPiece(lvl, x, y, { vy=0, pop=false }={}){
     position: new CANNON.Vec3(x,y,0),
     angularFactor: new CANNON.Vec3(0,0,1),
     linearDamping: 0.03,
-    angularDamping: 0.25,
+    angularDamping: 0.55,
     allowSleep: true,
     sleepSpeedLimit: 0.45,
     sleepTimeLimit: 0.6,
   });
   body.velocity.set(0,vy,0);
-  body.angularVelocity.set(0,0,rand(-1.5,1.5));
+  body.angularVelocity.set(0,0,rand(-0.9,0.9));
   world.addBody(body);
 
   const piece={ id:uid++, body, mesh, charRoot, shadow:sh, size, zOff, r:conf.r, lvl, born:gameTime, dead:false,
@@ -1641,9 +1641,15 @@ function tick(){
       const bp=p.body;
       const ip=bp.interpolatedPosition;
       p.mesh.position.set(ip.x, ip.y, p.zOff);
-      // 随水平速度轻微倾斜
-      const targetRz=clamp(-bp.velocity.x*0.045, -0.16, 0.16);
-      p.charRoot.rotation.z += (targetRz-p.charRoot.rotation.z)*Math.min(1,dt*10);
+      // 跟随物理自转：落地后可以歪着停，不再强制直立（更贴合堆叠空隙）
+      {
+        const q=bp.quaternion;
+        let ang=2*Math.atan2(q.z,q.w);
+        ang=clamp(ang,-0.85,0.85);
+        let d=ang-p.charRoot.rotation.z;
+        d=Math.atan2(Math.sin(d),Math.cos(d));
+        p.charRoot.rotation.z += d*Math.min(1,dt*14);
+      }
       // 落地挤压 + 呼吸
       let sy=1, sx=1;
       if(p.squashT>0){

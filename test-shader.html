@@ -84,6 +84,7 @@
   #startOverlay .card { box-shadow:0 24px 70px rgba(150,110,40,.30), 0 0 0 1px rgba(255,255,255,.6) inset; }
   #frogStage { position:absolute; inset:0; z-index:1; }
   .stageChar { position:absolute; pointer-events:auto; cursor:pointer; will-change:transform;
+    width:clamp(56px,7.5vw,150px); transform:translate(-50%,-100%);
     filter:drop-shadow(0 10px 12px rgba(150,110,40,.26)); text-align:center; }
   .stageChar img { width:100%; display:block; transform-origin:50% 100%; }
   .stageChar .nm { display:inline-block; margin-top:4px; padding:3px 11px; border-radius:999px;
@@ -1786,7 +1787,8 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
   const SPAWN_LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？','别挤啦','合我一下试试？'];
 
   const list=[];
-  const W0=()=>stage.clientWidth, H0=()=>stage.clientHeight;
+  const W0=()=>Math.round(stage.getBoundingClientRect().width)||window.innerWidth;
+  const H0=()=>Math.round(stage.getBoundingClientRect().height)||window.innerHeight;
 
   CAST.forEach((c,i)=>{
     const el=document.createElement('div');
@@ -1798,6 +1800,9 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
     nm.className='nm';
     nm.textContent=c.name;
     el.appendChild(img); el.appendChild(nm);
+    // 先按百分比铺开：即使此刻量不到容器尺寸，也绝不会堆在左上角
+    el.style.left=((i+0.5)/CAST.length*100)+'%';
+    el.style.top=(74+(i%3)*8.5)+'%';
     stage.appendChild(el);
 
     const item={ el, img, data:c, w:0, h:0, x:0, y:0, tx:0, ty:0,
@@ -1824,6 +1829,7 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
       const c=it.data;
       it.w=Math.max(46, Math.round(c.base*scale));
       it.el.style.width=it.w+'px';
+      it.el.style.left='0px'; it.el.style.top='0px';   // 切到像素定位
       const fx=(i+0.5)/list.length;                 // 横向均匀，纵向错落
       it.x=fx*W; it.tx=it.x;
       it.y=H*(0.74+(i%3)*0.085); it.ty=it.y;
@@ -1882,7 +1888,8 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
         c.face=dx<0?-1:1;
         bob=-Math.abs(Math.sin(c.ph*11))*6;
       }else{ c.moving=false; }
-      c.el.style.transform='translate('+(c.x-c.w/2)+'px,'+(c.y-c.h)+'px) translateY('+bob+'px)';
+      if(!laid){ continue; }                      // 还没量到尺寸：保持百分比初始位置
+      c.el.style.transform='translate('+c.x+'px,'+c.y+'px) translate(-50%,-100%) translateY('+bob+'px)';
       c.img.style.transform='scaleX('+c.face+') rotate('+(c.moving? Math.sin(c.ph*11)*4 : 0)+'deg)';
     }
   }

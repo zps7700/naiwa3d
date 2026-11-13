@@ -1333,8 +1333,8 @@ function spawnMergeFX(pos, level, big){
   const mat=new THREE.ShaderMaterial({
     uniforms:{
       uT:{value:0}, uSeed:{value:Math.random()*6.283},
-      uRing:{value:new THREE.Color(0x35D6C4)},
-      uCore:{value:new THREE.Color(0xE8FFF9)},
+      uRing:{value:new THREE.Color(0xFFF1CF)},
+      uCore:{value:new THREE.Color(0xFFFFFF)},
     },
     vertexShader:FXV, fragmentShader:FXF,
     transparent:true, depthWrite:false, blending:THREE.NormalBlending, toneMapped:false,
@@ -1396,7 +1396,7 @@ function doMerge(p,q){
   updateScore(state.score+pts);
   addPower(7+nl*1.6);
   markAchieved(nl);
-  particles.spawn(pos,{ count:10+nl*2, colors:[0xFFD34D,0xFFF3C0,0xFFFFFF], speed:4+nl*0.35, life:0.65, size:0.32+nl*0.03, up:3.2 });
+  particles.spawn(pos,{ count:10+nl*2, colors:[0xFFFFFF,0xFFF6DE,0xFFE9B8], speed:4+nl*0.35, life:0.65, size:0.32+nl*0.03, up:3.2 });
   SFX.pop(nl); SFX.merge(nl, state.combo);
   state.shake=Math.max(state.shake, 0.06+nl*0.016);
   floatText(mult>1? `+${pts} 连击x${mult}${doubled?' 双倍':''}` : `+${pts}${doubled?' 双倍':''}`, pos, mult>1? 'combo':'');
@@ -1815,20 +1815,31 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
   });
 
   function layout(){
-    const W=W0(), H=H0();
+    const rect=stage.getBoundingClientRect();
+    const W=Math.round(rect.width)||window.innerWidth;
+    const H=Math.round(rect.height)||window.innerHeight;
+    if(W<50||H<50) return false;                    // 容器还没布局好，先不摆
     const scale=Math.min(1, W/760);
     list.forEach((it,i)=>{
       const c=it.data;
       it.w=Math.max(46, Math.round(c.base*scale));
       it.el.style.width=it.w+'px';
-      const fx=(i+0.5)/list.length;                 // 均匀排开，不再乱堆
+      const fx=(i+0.5)/list.length;                 // 横向均匀，纵向错落
       it.x=fx*W; it.tx=it.x;
-      it.y=H*0.92; it.ty=it.y;
+      it.y=H*(0.74+(i%3)*0.085); it.ty=it.y;
       it.h=it.el.offsetHeight||it.w;
+      it.wait=1.5+Math.random()*3;
+    });
+    return true;
+  }
+  function layoutSoon(){
+    requestAnimationFrame(()=>{
+      if(!layout()) setTimeout(layout, 120);
     });
   }
-  layout();
-  window.addEventListener('resize', layout);
+  layoutSoon();
+  if(document.readyState!=='complete') window.addEventListener('load', layout);
+  window.addEventListener('resize', ()=>{ layout(); });
 
   /* 人物简介弹层 */
   const cc=$('charCard');
@@ -1845,14 +1856,22 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
   cc.addEventListener('click', (e)=>{ if(e.target===cc) cc.classList.remove('show'); });
 
   /* 走路 + 呼吸 */
-  let last=0;
+  let last=0, laid=false;
   function loop(ts){
     requestAnimationFrame(loop);
     const dt=Math.min((ts-last)/1000||0.016, 0.05); last=ts;
     if(state.mode!=='menu') return;
+    if(!laid) laid=layout();                        // 尺寸就绪后补一次排布
     const W=W0(), H=H0();
     for(const c of list){
       c.ph+=dt;
+      // 没人点它的时候，自己随机溜达
+      c.wait=(c.wait||0)-dt;
+      if(!c.moving && c.wait<=0){
+        c.tx=Math.min(Math.max(c.x+(Math.random()-0.5)*W*0.34, c.w*0.5), W-c.w*0.5);
+        c.ty=Math.min(Math.max(c.y+(Math.random()-0.5)*H*0.16, H*0.42), H*0.94);
+        c.wait=2.6+Math.random()*3.4;
+      }
       const dx=c.tx-c.x, dy=c.ty-c.y;
       const d=Math.hypot(dx,dy);
       let bob=Math.sin(c.ph*2.2)*2.0;

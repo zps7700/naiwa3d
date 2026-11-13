@@ -73,6 +73,9 @@
   .overlay { position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
     background:rgba(255,244,222,.72); backdrop-filter:blur(10px); transition:opacity .35s; }
   .overlay.hidden { opacity:0; pointer-events:none; }
+  /* 开始界面只留角色，不显示对局 HUD */
+  body.menu #scorePanel, body.menu #nextPanel, body.menu #muteBtn, body.menu #powerPanel,
+  body.menu #chainBar, body.menu #loadingTip { opacity:0; pointer-events:none; transition:opacity .3s; }
   /* 开始界面：游戏角色站在奶油棋盘上 */
   #startOverlay {
     background:radial-gradient(circle at 50% 42%, rgba(255,253,246,.62), rgba(255,238,208,.78) 78%);
@@ -80,9 +83,27 @@
   }
   #startOverlay .card { box-shadow:0 24px 70px rgba(150,110,40,.30), 0 0 0 1px rgba(255,255,255,.6) inset; }
   #frogStage { position:absolute; inset:0; z-index:1; }
-  .stageChar { position:absolute; pointer-events:none; will-change:transform;
-    filter:drop-shadow(0 10px 12px rgba(150,110,40,.26)); }
+  .stageChar { position:absolute; pointer-events:auto; cursor:pointer; will-change:transform;
+    filter:drop-shadow(0 10px 12px rgba(150,110,40,.26)); text-align:center; }
   .stageChar img { width:100%; display:block; transform-origin:50% 100%; }
+  .stageChar .nm { display:block; margin-top:2px; font-size:12px; font-weight:800; color:#8A5A14;
+    letter-spacing:1px; text-shadow:0 1px 0 #fff, 0 0 6px rgba(255,255,255,.9); white-space:nowrap; }
+
+  /* 人物简介弹层 */
+  #charCard { position:fixed; inset:0; z-index:34; display:none; align-items:center; justify-content:center;
+    background:rgba(60,40,15,.42); backdrop-filter:blur(3px); }
+  #charCard.show { display:flex; }
+  #charCard .bio { width:min(86vw,430px); max-height:80vh; overflow:auto; position:relative;
+    background:linear-gradient(165deg,#FFFDF6,#FFEFD2); border:3px solid #FFD98F; border-radius:24px;
+    padding:26px 26px 22px; box-shadow:0 24px 60px rgba(120,80,20,.35); }
+  #charCard .bio h3 { font-size:26px; color:#B45C10; letter-spacing:2px; margin-bottom:2px; }
+  #charCard .bio .lv { font-size:12px; color:#B08A4F; font-weight:700; letter-spacing:1px; margin-bottom:14px; }
+  #charCard .bio .row { font-size:14px; color:#6B5327; line-height:1.9; margin-bottom:10px; }
+  #charCard .bio .row b { color:#B45C10; }
+  #charCard .bio .quote { margin:12px 0 4px; padding:10px 12px; border-left:4px solid #FFC96B;
+    background:#FFF7E6; border-radius:0 10px 10px 0; color:#8A6A33; font-size:14px; line-height:1.85; }
+  #charCard .bio .close { position:absolute; top:10px; right:14px; font-size:22px; color:#C19A5B;
+    cursor:pointer; font-weight:900; line-height:1; }
 
   /* ---------- 对局中的小奶蛙 ---------- */
   #frogBuddy {
@@ -297,6 +318,14 @@
 <div class="hud" id="chainBar"></div>
 <div id="vignette"></div>
 <div id="frogBuddy"><img src="assets/frog.png" alt="奶蛙"></div>
+<div id="charCard"><div class="bio">
+  <span class="close" id="bioClose">×</span>
+  <h3 id="bioName"></h3>
+  <div class="lv" id="bioLv"></div>
+  <div class="row" id="bioRule"></div>
+  <div class="row" id="bioStory"></div>
+  <div class="quote" id="bioQuote"></div>
+</div></div>
 <div id="feverGlow"></div>
 <div id="feverTag">奶气爆发 · 双倍得分</div>
 <div id="loadingTip">移动瞄准 · 点击 / 空格 投放 · 相同奶蛙相撞合成更大奶蛙</div>
@@ -1706,14 +1735,12 @@ $('startBtn').addEventListener('click', ()=>{ SFX.unlock(); startGame(); });
 /* ---------- 开始界面：游戏角色列队，点哪走哪 ---------- */
 const frogBuddy=$('frogBuddy');
 const FROG_WORDS=['呱！','呱呱~','奶~','嘿嘿','呱？'];
-function frogSay(el){
-  SFX.unlock();
-  try{ SFX.pop(2+Math.floor(Math.random()*3)); }catch(e){}
-  if(navigator.vibrate) navigator.vibrate(10);
+function frogSay(el, text, silent){
+  if(!silent){ SFX.unlock(); try{ SFX.pop(2+Math.floor(Math.random()*3)); }catch(e){} if(navigator.vibrate) navigator.vibrate(10); }
   const r=el.getBoundingClientRect();
   const tip=document.createElement('div');
   tip.className='frogSay';
-  tip.textContent=FROG_WORDS[Math.floor(Math.random()*FROG_WORDS.length)];
+  tip.textContent=text || FROG_WORDS[Math.floor(Math.random()*FROG_WORDS.length)];
   tip.style.left=(r.left+r.width/2)+'px';
   tip.style.top=(r.top+6)+'px';
   document.body.appendChild(tip);
@@ -1723,76 +1750,121 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
 
 (function buildStage(){
   const stage=$('frogStage');
-  const plan=[
-    {lvl:0,  x:0.10, y:0.72, w:64},
-    {lvl:2,  x:0.20, y:0.86, w:78},
-    {lvl:4,  x:0.31, y:0.66, w:92},
-    {lvl:6,  x:0.68, y:0.70, w:104},
-    {lvl:8,  x:0.80, y:0.86, w:120},
-    {lvl:10, x:0.90, y:0.62, w:146},
-    {lvl:1,  x:0.44, y:0.90, w:70},
-    {lvl:5,  x:0.58, y:0.88, w:98},
+
+  /* 人物档案：名字 / 定位 / 网文风经历 / 口头禅 */
+  const CAST=[
+    { lvl:0, name:'奶蛋', base:74,
+      rule:'两只奶蛋相撞 → 奶豆',
+      story:'奶家老宅最角落的一颗蛋。三年前族中测资，判定它“无合体之相”，终生只是颗蛋。它没辩解，只是每天比别的蛋多滚三圈。',
+      quote:'“我不是不会合，我是在等一个愿意撞我的人。”' },
+    { lvl:2, name:'奶鼠', base:90,
+      rule:'两只奶鼠相撞 → 奶鸡',
+      story:'偷吃奶家粮仓长大，被逐出族门。谁也没想到，它靠一口尖牙咬穿了三级合成线，成了棋盘上最能挤的那一个。',
+      quote:'“别看我小，我拱得动一整个角落。”' },
+    { lvl:4, name:'奶狗', base:106,
+      rule:'两只奶狗相撞 → 奶马',
+      story:'奶家守门人。传说它在棋盘边缘站了整整三年，只为等一只合成失败、从上面滚下来的奶蛋。',
+      quote:'“你掉下来吧，我接着。”' },
+    { lvl:7, name:'奶壮', base:126,
+      rule:'两只奶壮相撞 → 天使奶蛙',
+      story:'族中最壮的一只。一拳能把两只同级奶蛙打进同一条合成线，奶家子弟私下叫它“拱王”。',
+      quote:'“别怕，我这一下，是帮你进阶。”' },
+    { lvl:9, name:'大笑奶蛙', base:148,
+      rule:'两只大笑奶蛙相撞 → 神奶蛙',
+      story:'笑声能掀翻整座棋盘。冲击波扫过之处，堆积如山者尽数散开。它一笑，满屏的奶气都朝它流。',
+      quote:'“哈——哈——哈——！堆那么高，是想压死谁？”' },
+    { lvl:10, name:'神奶蛙', base:168,
+      rule:'两只神奶蛙相撞 → 双双炸裂，+500 分、复活币 +1',
+      story:'奶家的传说，只在对局最深处现身。两只神奶蛙一旦相遇，天地同爆，棋盘为之一空——据说见过的人，分数都上了四位数。',
+      quote:'“我出场，从来不是为了合成，是为了谢幕。”' },
   ];
+
+  const SPAWN_LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？','别挤啦','合我一下试试？'];
+
   const list=[];
-  plan.forEach((p,i)=>{
+  const W0=()=>stage.clientWidth, H0=()=>stage.clientHeight;
+
+  CAST.forEach((c,i)=>{
     const el=document.createElement('div');
     el.className='stageChar';
-    el.style.width=p.w+'px';
-    el.style.zIndex=String(10+Math.round(p.y*10));
     const img=document.createElement('img');
-    img.src='assets/image'+p.lvl+'.webp';
-    img.alt='奶蛙';
-    el.appendChild(img);
+    img.src='assets/image'+c.lvl+'.webp';
+    img.alt=c.name;
+    const nm=document.createElement('span');
+    nm.className='nm';
+    nm.textContent=c.name;
+    el.appendChild(img); el.appendChild(nm);
     stage.appendChild(el);
-    list.push({
-      el, img, level:p.lvl, w:p.w, h:p.w,
-      x:p.x*stage.clientWidth, y:p.y*stage.clientHeight,
-      tx:p.x*stage.clientWidth, ty:p.y*stage.clientHeight,
-      face:1, ph:i*0.9, moving:false,
+
+    const item={ el, img, data:c, w:0, h:0, x:0, y:0, tx:0, ty:0,
+                 face:1, ph:i*1.1, moving:false };
+    list.push(item);
+
+    el.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      openBio(c);
     });
-    img.addEventListener('load', ()=>{ list[list.length-1].h=el.offsetHeight||p.w; });
-    if(img.complete) setTimeout(()=>{ list[list.length-1].h=el.offsetHeight||p.w; }, 0);
+    const fix=()=>{ item.h=el.offsetHeight||c.base; };
+    img.addEventListener('load', fix);
+    if(img.complete) setTimeout(fix,0);
   });
 
-  function place(){
-    const W=stage.clientWidth, H=stage.clientHeight;
-    for(const c of list){
-      c.x=Math.min(Math.max(c.x, c.w*0.5), W-c.w*0.5);
-      c.y=Math.min(Math.max(c.y, H*0.30), H-10);
-      c.tx=Math.min(Math.max(c.tx, c.w*0.5), W-c.w*0.5);
-      c.ty=Math.min(Math.max(c.ty, H*0.30), H-10);
-      c.el.style.width=c.w+'px';
-    }
+  function layout(){
+    const W=W0(), H=H0();
+    const scale=Math.min(1, W/760);
+    list.forEach((it,i)=>{
+      const c=it.data;
+      it.w=Math.max(46, Math.round(c.base*scale));
+      it.el.style.width=it.w+'px';
+      const fx=(i+0.5)/list.length;                 // 均匀排开，不再乱堆
+      it.x=fx*W; it.tx=it.x;
+      it.y=H*0.92; it.ty=it.y;
+      it.h=it.el.offsetHeight||it.w;
+    });
   }
+  layout();
+  window.addEventListener('resize', layout);
+
+  /* 人物简介弹层 */
+  const cc=$('charCard');
+  function openBio(c){
+    $('bioName').textContent=c.name;
+    $('bioLv').textContent='奶家图鉴 · 第 '+(c.lvl+1)+' 阶 / 共 11 阶';
+    $('bioRule').innerHTML='<b>合成规则：</b>'+c.rule;
+    $('bioStory').innerHTML='<b>人物经历：</b>'+c.story;
+    $('bioQuote').textContent=c.quote;
+    cc.classList.add('show');
+    try{ SFX.pop(3); }catch(e){}
+  }
+  $('bioClose').addEventListener('click', ()=>cc.classList.remove('show'));
+  cc.addEventListener('click', (e)=>{ if(e.target===cc) cc.classList.remove('show'); });
+
+  /* 走路 + 呼吸 */
   let last=0;
   function loop(ts){
     requestAnimationFrame(loop);
     const dt=Math.min((ts-last)/1000||0.016, 0.05); last=ts;
-    if(state.mode==='playing'){ return; }
-    const W=stage.clientWidth, H=stage.clientHeight;
+    if(state.mode!=='menu') return;
+    const W=W0(), H=H0();
     for(const c of list){
       c.ph+=dt;
       const dx=c.tx-c.x, dy=c.ty-c.y;
       const d=Math.hypot(dx,dy);
-      let bob=Math.sin(c.ph*2.2)*2.2;         // 站立呼吸
+      let bob=Math.sin(c.ph*2.2)*2.0;
       if(d>3){
         c.moving=true;
-        const step=Math.min(d, 260*dt);
+        const step=Math.min(d, 240*dt);
         c.x+=dx/d*step; c.y+=dy/d*step;
         c.face=dx<0?-1:1;
-        bob=-Math.abs(Math.sin(c.ph*11))*7;   // 走路的颠步
-      }else{
-        c.moving=false;
-      }
+        bob=-Math.abs(Math.sin(c.ph*11))*6;
+      }else{ c.moving=false; }
       c.el.style.transform='translate('+(c.x-c.w/2)+'px,'+(c.y-c.h)+'px) translateY('+bob+'px)';
       c.img.style.transform='scaleX('+c.face+') rotate('+(c.moving? Math.sin(c.ph*11)*4 : 0)+'deg)';
     }
   }
   requestAnimationFrame(loop);
-  window.addEventListener('resize', place);
-  place();
 
-  // 点击场景任意位置 → 最近的角色走过去
+  /* 点空白处 → 最近的角色走过去 */
   $('startOverlay').addEventListener('pointerdown', (e)=>{
     if(e.target.closest('.card')) return;
     const r=stage.getBoundingClientRect();
@@ -1803,9 +1875,16 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
       if(dd<bd){ bd=dd; best=c; }
     }
     if(!best) return;
-    best.tx=px; best.ty=py;
-    setTimeout(()=>frogSay(best.el), 320);
+    best.tx=Math.min(Math.max(px,best.w*0.5), W0()-best.w*0.5);
+    best.ty=Math.min(Math.max(py,H0()*0.30), H0()-8);
   });
+
+  /* 语录气泡：每隔几秒随机一只说一句 */
+  setInterval(()=>{
+    if(state.mode!=='menu') return;
+    const c=list[Math.floor(Math.random()*list.length)];
+    if(c) frogSay(c.el, SPAWN_LINES[Math.floor(Math.random()*SPAWN_LINES.length)], true);
+  }, 4200);
 })();
 
 /* ---------- PK 入口 ---------- */
@@ -1851,7 +1930,7 @@ ultBtn.addEventListener('click', fireUltimate);
 const clock=new THREE.Clock();
 const baseCamPos=camera.position.clone();
 
-let lastFrogMode=null;
+let lastFrogMode=null, lastMenu=null;
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(), 1/30);
@@ -1934,11 +2013,16 @@ function tick(){
     if(state.dangerTime>1.5) gameOver();
   }
 
-  // 对局中显示右下角的小奶蛙
+  // 对局中显示右下角的小奶蛙；开始界面隐藏对局 HUD
   const inPlay=(state.mode==='playing');
   if(inPlay!==lastFrogMode){
     lastFrogMode=inPlay;
     frogBuddy.style.display=inPlay?'block':'none';
+  }
+  const isMenu=(state.mode==='menu');
+  if(isMenu!==lastMenu){
+    lastMenu=isMenu;
+    document.body.classList.toggle('menu', isMenu);
   }
 
   // 幽灵球 & 瞄准线

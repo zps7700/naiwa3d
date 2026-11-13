@@ -73,27 +73,18 @@
   .overlay { position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
     background:rgba(255,244,222,.72); backdrop-filter:blur(10px); transition:opacity .35s; }
   .overlay.hidden { opacity:0; pointer-events:none; }
-  /* 开始界面：晨雾森林 + 忧郁奶蛙 */
+  /* 开始界面：游戏角色站在奶油棋盘上 */
   #startOverlay {
-    background:
-      radial-gradient(circle at 50% 46%, rgba(255,250,238,.10), rgba(6,32,26,.34) 80%),
-      url('assets/forest.jpg') 72% center/cover no-repeat;
+    background:radial-gradient(circle at 50% 42%, rgba(255,253,246,.62), rgba(255,238,208,.78) 78%);
     backdrop-filter:none;
   }
-  #startOverlay .card { box-shadow:0 24px 70px rgba(6,40,32,.45), 0 0 0 1px rgba(255,255,255,.5) inset; }
+  #startOverlay .card { box-shadow:0 24px 70px rgba(150,110,40,.30), 0 0 0 1px rgba(255,255,255,.6) inset; }
+  #frogStage { position:absolute; inset:0; z-index:1; }
+  .stageChar { position:absolute; pointer-events:none; will-change:transform;
+    filter:drop-shadow(0 10px 12px rgba(150,110,40,.26)); }
+  .stageChar img { width:100%; display:block; transform-origin:50% 100%; }
 
-  /* ---------- 可交互奶蛙 ---------- */
-  #frogRunner {
-    position:absolute; z-index:1; bottom:8%; left:0; width:170px; cursor:pointer;
-    filter:drop-shadow(0 14px 18px rgba(0,0,0,.45));
-    animation:runAcross 22s linear infinite; will-change:transform;
-  }
-  #frogRunner img { width:100%; display:block; animation:hop 0.46s ease-in-out infinite; }
-  #frogRunner.jump { animation-play-state:paused; }
-  #frogRunner.jump img { animation:none; transform:translateY(-46px) scale(1.06,0.94); }
-  @keyframes runAcross { 0%{ transform:translateX(112vw); } 100%{ transform:translateX(-24vw); } }
-  @keyframes hop { 0%,100%{ transform:translateY(0) rotate(-2.5deg);} 50%{ transform:translateY(-9px) rotate(2.5deg);} }
-
+  /* ---------- 对局中的小奶蛙 ---------- */
   #frogBuddy {
     position:fixed; right:8px; bottom:104px; width:92px; z-index:11; cursor:pointer; display:none;
     filter:drop-shadow(0 8px 12px rgba(120,80,20,.35));
@@ -312,7 +303,7 @@
 
 <!-- 开始界面 -->
 <div class="overlay" id="startOverlay">
-  <div id="frogRunner"><img src="assets/frog.png" alt="奶蛙"></div>
+  <div id="frogStage"></div>
   <div class="card">
     <h1 id="gameTitle">合成大奶蛙</h1>
     <div class="sub">3D 物理合成 · 奶萌出击</div>
@@ -1712,12 +1703,10 @@ function restart(){
 }
 $('startBtn').addEventListener('click', ()=>{ SFX.unlock(); startGame(); });
 
-/* ---------- 可交互奶蛙：点击会跳、会叫、冒气泡 ---------- */
-const frogRunner=$('frogRunner'), frogBuddy=$('frogBuddy');
+/* ---------- 开始界面：游戏角色列队，点哪走哪 ---------- */
+const frogBuddy=$('frogBuddy');
 const FROG_WORDS=['呱！','呱呱~','奶~','嘿嘿','呱？'];
-function frogTap(el){
-  if(el.classList.contains('jump')) return;
-  el.classList.add('jump');
+function frogSay(el){
   SFX.unlock();
   try{ SFX.pop(2+Math.floor(Math.random()*3)); }catch(e){}
   if(navigator.vibrate) navigator.vibrate(10);
@@ -1726,13 +1715,98 @@ function frogTap(el){
   tip.className='frogSay';
   tip.textContent=FROG_WORDS[Math.floor(Math.random()*FROG_WORDS.length)];
   tip.style.left=(r.left+r.width/2)+'px';
-  tip.style.top=(r.top+8)+'px';
+  tip.style.top=(r.top+6)+'px';
   document.body.appendChild(tip);
   setTimeout(()=>tip.remove(), 1000);
-  setTimeout(()=>el.classList.remove('jump'), 420);
 }
-frogRunner.addEventListener('click', ()=>frogTap(frogRunner));
-frogBuddy.addEventListener('click', ()=>{ frogTap(frogBuddy); state.shake=Math.max(state.shake,0.10); });
+frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.max(state.shake,0.10); });
+
+(function buildStage(){
+  const stage=$('frogStage');
+  const plan=[
+    {lvl:0,  x:0.10, y:0.72, w:64},
+    {lvl:2,  x:0.20, y:0.86, w:78},
+    {lvl:4,  x:0.31, y:0.66, w:92},
+    {lvl:6,  x:0.68, y:0.70, w:104},
+    {lvl:8,  x:0.80, y:0.86, w:120},
+    {lvl:10, x:0.90, y:0.62, w:146},
+    {lvl:1,  x:0.44, y:0.90, w:70},
+    {lvl:5,  x:0.58, y:0.88, w:98},
+  ];
+  const list=[];
+  plan.forEach((p,i)=>{
+    const el=document.createElement('div');
+    el.className='stageChar';
+    el.style.width=p.w+'px';
+    el.style.zIndex=String(10+Math.round(p.y*10));
+    const img=document.createElement('img');
+    img.src='assets/image'+p.lvl+'.webp';
+    img.alt='奶蛙';
+    el.appendChild(img);
+    stage.appendChild(el);
+    list.push({
+      el, img, level:p.lvl, w:p.w, h:p.w,
+      x:p.x*stage.clientWidth, y:p.y*stage.clientHeight,
+      tx:p.x*stage.clientWidth, ty:p.y*stage.clientHeight,
+      face:1, ph:i*0.9, moving:false,
+    });
+    img.addEventListener('load', ()=>{ list[list.length-1].h=el.offsetHeight||p.w; });
+    if(img.complete) setTimeout(()=>{ list[list.length-1].h=el.offsetHeight||p.w; }, 0);
+  });
+
+  function place(){
+    const W=stage.clientWidth, H=stage.clientHeight;
+    for(const c of list){
+      c.x=Math.min(Math.max(c.x, c.w*0.5), W-c.w*0.5);
+      c.y=Math.min(Math.max(c.y, H*0.30), H-10);
+      c.tx=Math.min(Math.max(c.tx, c.w*0.5), W-c.w*0.5);
+      c.ty=Math.min(Math.max(c.ty, H*0.30), H-10);
+      c.el.style.width=c.w+'px';
+    }
+  }
+  let last=0;
+  function loop(ts){
+    requestAnimationFrame(loop);
+    const dt=Math.min((ts-last)/1000||0.016, 0.05); last=ts;
+    if(state.mode==='playing'){ return; }
+    const W=stage.clientWidth, H=stage.clientHeight;
+    for(const c of list){
+      c.ph+=dt;
+      const dx=c.tx-c.x, dy=c.ty-c.y;
+      const d=Math.hypot(dx,dy);
+      let bob=Math.sin(c.ph*2.2)*2.2;         // 站立呼吸
+      if(d>3){
+        c.moving=true;
+        const step=Math.min(d, 260*dt);
+        c.x+=dx/d*step; c.y+=dy/d*step;
+        c.face=dx<0?-1:1;
+        bob=-Math.abs(Math.sin(c.ph*11))*7;   // 走路的颠步
+      }else{
+        c.moving=false;
+      }
+      c.el.style.transform='translate('+(c.x-c.w/2)+'px,'+(c.y-c.h)+'px) translateY('+bob+'px)';
+      c.img.style.transform='scaleX('+c.face+') rotate('+(c.moving? Math.sin(c.ph*11)*4 : 0)+'deg)';
+    }
+  }
+  requestAnimationFrame(loop);
+  window.addEventListener('resize', place);
+  place();
+
+  // 点击场景任意位置 → 最近的角色走过去
+  $('startOverlay').addEventListener('pointerdown', (e)=>{
+    if(e.target.closest('.card')) return;
+    const r=stage.getBoundingClientRect();
+    const px=e.clientX-r.left, py=e.clientY-r.top;
+    let best=null, bd=1e9;
+    for(const c of list){
+      const dd=(c.x-px)*(c.x-px)+(c.y-py)*(c.y-py);
+      if(dd<bd){ bd=dd; best=c; }
+    }
+    if(!best) return;
+    best.tx=px; best.ty=py;
+    setTimeout(()=>frogSay(best.el), 320);
+  });
+})();
 
 /* ---------- PK 入口 ---------- */
 $('pkToggle').addEventListener('click', ()=>{
@@ -1860,11 +1934,10 @@ function tick(){
     if(state.dangerTime>1.5) gameOver();
   }
 
-  // 奶蛙可见性：开始界面在森林里跑，进入游戏后变小助手
+  // 对局中显示右下角的小奶蛙
   const inPlay=(state.mode==='playing');
   if(inPlay!==lastFrogMode){
     lastFrogMode=inPlay;
-    frogRunner.style.display=inPlay?'none':'block';
     frogBuddy.style.display=inPlay?'block':'none';
   }
 

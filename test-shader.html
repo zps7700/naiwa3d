@@ -71,7 +71,7 @@
 
   /* ---------- 遮罩层 ---------- */
   .overlay { position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
-    background:rgba(255,244,222,.72); backdrop-filter:blur(10px); transition:opacity .35s; }
+    background:rgba(255,246,228,.38); backdrop-filter:blur(3px); transition:opacity .35s; }
   .overlay.hidden { opacity:0; pointer-events:none; }
   .card { background:linear-gradient(160deg,#FFFDF6,#FFF1D6); border:3px solid #FFDFA0; border-radius:28px;
     padding:34px 44px; text-align:center; box-shadow:0 20px 60px rgba(190,130,40,.25); max-width:88vw; }
@@ -340,9 +340,9 @@
 </div>
 
 <script type="module">
-/* 直接使用完整 URL，避免 importmap 在微信 / 部分安卓 WebView 内核里不受支持 */
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import * as CANNON from 'https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js';
+/* 同源加载，不走 CDN：unpkg 实测 15s，本地文件仅 1s 内 */
+import * as THREE from './three.module.js';
+import * as CANNON from './cannon-es.js';
 
 /* ============================================================
  * 原版角色素材（透明底 WebP，base64 内嵌，避免 file:// 跨域）
@@ -636,7 +636,7 @@ dangerLine.computeLineDistances(); scene.add(dangerLine);
 const aimGeo=new THREE.BufferGeometry();
 const aimPos=new Float32Array(6);
 aimGeo.setAttribute('position', new THREE.BufferAttribute(aimPos,3));
-const aimLine=new THREE.Line(aimGeo, new THREE.LineDashedMaterial({ color:0xC89B5A, dashSize:0.28, gapSize:0.2, transparent:true, opacity:0.55 }));
+const aimLine=new THREE.Line(aimGeo, new THREE.LineDashedMaterial({ color:0x9C6A24, dashSize:0.34, gapSize:0.18, transparent:true, opacity:0.85 }));
 scene.add(aimLine);
 
 /* ---------- 环境漂浮奶泡 ---------- */
@@ -829,8 +829,49 @@ const shadowMat=new THREE.MeshBasicMaterial({
  *   ② 屏幕空间波纹：合成瞬间以命中点为中心做 UV 扭曲 + 色散
  *   ③ 合成冲击波：ShaderMaterial 绘制的环形能量波
  * ============================================================ */
+/* ---------- 开始界面装饰：奶蛙们在场边嬉闹 ---------- */
+const menuDeco=[];
+(function buildMenuDeco(){
+  const conf=[
+    {lvl:0, x:-3.72, y:1.55, s:0.80, ph:0.0, amp:0.34, sw:0.20},
+    {lvl:1, x:-2.52, y:1.02, s:0.58, ph:1.9, amp:0.46, sw:0.26},
+    {lvl:3, x: 2.60, y:1.10, s:0.66, ph:3.4, amp:0.42, sw:0.24},
+    {lvl:5, x: 3.74, y:1.86, s:0.88, ph:5.1, amp:0.28, sw:0.18},
+    {lvl:7, x: 3.12, y:0.66, s:0.46, ph:2.6, amp:0.54, sw:0.32},
+    {lvl:9, x:-3.22, y:0.62, s:0.50, ph:4.2, amp:0.50, sw:0.30},
+  ];
+  conf.forEach(c=>{
+    const pivot=new THREE.Object3D();          // 父节点反向补偿俯角 → 始终正面朝向
+    pivot.rotation.x=-CAM_PITCH;
+    const m=new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({
+      map:getCharTexture(c.lvl), transparent:true, alphaTest:0.04,
+      depthWrite:false, toneMapped:false,
+    }));
+    m.position.z=1.5; m.scale.setScalar(c.s);
+    pivot.position.set(c.x,c.y,1.5);
+    pivot.visible=false;
+    pivot.add(m); scene.add(pivot);
+    pivot.userData={...c, mesh:m};
+    menuDeco.push(pivot);
+  });
+})();
+function updateMenuDeco(t){
+  const on=(state.mode==='menu');
+  for(let i=0;i<menuDeco.length;i++){
+    const p=menuDeco[i], u=p.userData;
+    if(p.visible!==on){ p.visible=on; }
+    if(!on) continue;
+    const k=t*2.0+u.ph;                        // 一上一下地蹦跳
+    p.position.y=u.y+Math.abs(Math.sin(k))*u.amp;
+    p.position.x=u.x+Math.sin(t*0.85+u.ph)*u.sw;
+    u.mesh.rotation.z=Math.sin(k*0.5)*0.16;    // 左右晃头
+    const sq=1+Math.sin(k*2)*0.05;             // 落地挤压
+    u.mesh.scale.set(u.s*(2-sq)*0.5+u.s*0.5, u.s*sq, 1);
+  }
+}
+
 const POST={
-  enabled:true, threshold:1.02, strength:0.30, radius:1.0, exposure:1.0,
+  enabled:true, threshold:1.02, strength:0.12, radius:1.0, exposure:1.0,
   ripples:[], flash:0, ready:false,
 };
 let rtScene=null, rtBlurA=null, rtBlurB=null, postScene=null, postCam=null, postQuad=null;
@@ -2026,6 +2067,7 @@ function tick(){
   }
   // 合成闪光衰减
   POST.flash = POST.flash>0.001 ? POST.flash*Math.pow(0.006,dt) : 0;
+  updateMenuDeco(performance.now()*0.001);
 
   if(POST.enabled) renderFrame(); else renderer.render(scene,camera);
 }

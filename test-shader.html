@@ -1784,6 +1784,7 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
 
 (function buildStage(){
   const panel=$('charPanel'), pic=$('cpImg'), nmEl=$('cpName'), lvEl=$('cpLv');
+  document.body.classList.add('menu');   // 初始就是开始界面，先亮出来
 
   /* 11 阶人物档案：名字 / 合成规则 / 人物经历 / 口头禅 */
   const CAST=[
@@ -1875,7 +1876,7 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
   /* 偶尔让当前人物冒一句 */
   const LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？'];
   setInterval(()=>{
-    if(state.mode!=='menu') return;
+    if(state.mode!=='ready') return;
     frogSay(panel, LINES[Math.floor(Math.random()*LINES.length)], true);
   }, 5200);
 })();
@@ -2012,7 +2013,7 @@ function tick(){
     lastFrogMode=inPlay;
     frogBuddy.style.display=inPlay?'block':'none';
   }
-  const isMenu=(state.mode==='menu');
+  const isMenu=(state.mode==='ready');
   if(isMenu!==lastMenu){
     lastMenu=isMenu;
     document.body.classList.toggle('menu', isMenu);

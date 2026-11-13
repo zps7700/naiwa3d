@@ -81,7 +81,33 @@
     backdrop-filter:none;
   }
   #startOverlay .card { box-shadow:0 24px 70px rgba(6,40,32,.45), 0 0 0 1px rgba(255,255,255,.5) inset; }
-  .card { background:linear-gradient(160deg,#FFFDF6,#FFF1D6); border:3px solid #FFDFA0; border-radius:28px;
+
+  /* ---------- 可交互奶蛙 ---------- */
+  #frogRunner {
+    position:absolute; z-index:1; bottom:8%; left:0; width:170px; cursor:pointer;
+    filter:drop-shadow(0 14px 18px rgba(0,0,0,.45));
+    animation:runAcross 22s linear infinite; will-change:transform;
+  }
+  #frogRunner img { width:100%; display:block; animation:hop 0.46s ease-in-out infinite; }
+  #frogRunner.jump { animation-play-state:paused; }
+  #frogRunner.jump img { animation:none; transform:translateY(-46px) scale(1.06,0.94); }
+  @keyframes runAcross { 0%{ transform:translateX(112vw); } 100%{ transform:translateX(-24vw); } }
+  @keyframes hop { 0%,100%{ transform:translateY(0) rotate(-2.5deg);} 50%{ transform:translateY(-9px) rotate(2.5deg);} }
+
+  #frogBuddy {
+    position:fixed; right:8px; bottom:104px; width:92px; z-index:11; cursor:pointer; display:none;
+    filter:drop-shadow(0 8px 12px rgba(120,80,20,.35));
+  }
+  #frogBuddy img { width:100%; display:block; animation:breathe 2.6s ease-in-out infinite; }
+  #frogBuddy.jump img { animation:none; transform:translateY(-26px) scale(1.05,0.95); }
+  @keyframes breathe { 0%,100%{ transform:translateY(0) scale(1);} 50%{ transform:translateY(-4px) scale(1.03);} }
+  .frogSay {
+    position:fixed; z-index:32; pointer-events:none; font-weight:900; font-size:22px; color:#5B7A2E;
+    text-shadow:0 2px 0 #fff, 0 0 12px rgba(255,255,255,.9); transform:translate(-50%,-50%);
+    animation:sayUp .95s ease-out forwards;
+  }
+  @keyframes sayUp { 0%{opacity:0; margin-top:0; transform:translate(-50%,-50%) scale(.6);} 25%{opacity:1; transform:translate(-50%,-50%) scale(1.1);} 100%{opacity:0; margin-top:-58px;} }
+  .card { position:relative; z-index:2; background:linear-gradient(160deg,#FFFDF6,#FFF1D6); border:3px solid #FFDFA0; border-radius:28px;
     padding:34px 44px; text-align:center; box-shadow:0 20px 60px rgba(190,130,40,.25); max-width:88vw; }
   .card h1 { font-size:44px; font-weight:900; letter-spacing:4px;
     background:linear-gradient(180deg,#FF9A3D,#E07000); -webkit-background-clip:text; background-clip:text;
@@ -279,12 +305,14 @@
 
 <div class="hud" id="chainBar"></div>
 <div id="vignette"></div>
+<div id="frogBuddy"><img src="assets/frog.png" alt="奶蛙"></div>
 <div id="feverGlow"></div>
 <div id="feverTag">奶气爆发 · 双倍得分</div>
 <div id="loadingTip">移动瞄准 · 点击 / 空格 投放 · 相同奶蛙相撞合成更大奶蛙</div>
 
 <!-- 开始界面 -->
 <div class="overlay" id="startOverlay">
+  <div id="frogRunner"><img src="assets/frog.png" alt="奶蛙"></div>
   <div class="card">
     <h1 id="gameTitle">合成大奶蛙</h1>
     <div class="sub">3D 物理合成 · 奶萌出击</div>
@@ -1684,6 +1712,28 @@ function restart(){
 }
 $('startBtn').addEventListener('click', ()=>{ SFX.unlock(); startGame(); });
 
+/* ---------- 可交互奶蛙：点击会跳、会叫、冒气泡 ---------- */
+const frogRunner=$('frogRunner'), frogBuddy=$('frogBuddy');
+const FROG_WORDS=['呱！','呱呱~','奶~','嘿嘿','呱？'];
+function frogTap(el){
+  if(el.classList.contains('jump')) return;
+  el.classList.add('jump');
+  SFX.unlock();
+  try{ SFX.pop(2+Math.floor(Math.random()*3)); }catch(e){}
+  if(navigator.vibrate) navigator.vibrate(10);
+  const r=el.getBoundingClientRect();
+  const tip=document.createElement('div');
+  tip.className='frogSay';
+  tip.textContent=FROG_WORDS[Math.floor(Math.random()*FROG_WORDS.length)];
+  tip.style.left=(r.left+r.width/2)+'px';
+  tip.style.top=(r.top+8)+'px';
+  document.body.appendChild(tip);
+  setTimeout(()=>tip.remove(), 1000);
+  setTimeout(()=>el.classList.remove('jump'), 420);
+}
+frogRunner.addEventListener('click', ()=>frogTap(frogRunner));
+frogBuddy.addEventListener('click', ()=>{ frogTap(frogBuddy); state.shake=Math.max(state.shake,0.10); });
+
 /* ---------- PK 入口 ---------- */
 $('pkToggle').addEventListener('click', ()=>{
   const on=$('pkPanel').classList.toggle('on');
@@ -1727,6 +1777,7 @@ ultBtn.addEventListener('click', fireUltimate);
 const clock=new THREE.Clock();
 const baseCamPos=camera.position.clone();
 
+let lastFrogMode=null;
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(), 1/30);
@@ -1807,6 +1858,14 @@ function tick(){
       lineMat.opacity=0.3;
     }
     if(state.dangerTime>1.5) gameOver();
+  }
+
+  // 奶蛙可见性：开始界面在森林里跑，进入游戏后变小助手
+  const inPlay=(state.mode==='playing');
+  if(inPlay!==lastFrogMode){
+    lastFrogMode=inPlay;
+    frogRunner.style.display=inPlay?'none':'block';
+    frogBuddy.style.display=inPlay?'block':'none';
   }
 
   // 幽灵球 & 瞄准线

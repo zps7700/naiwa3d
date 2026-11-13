@@ -94,6 +94,28 @@
   .stageChar:active .nm, .stageChar:hover .nm { background:#FFE9BE; color:#B45C10; border-color:#F0B457; }
   .stageChar:hover { filter:drop-shadow(0 12px 16px rgba(150,110,40,.4)) brightness(1.04); }
 
+  /* 左上角人物展示 */
+  #charPanel { position:absolute; left:18px; top:18px; z-index:3; display:none;
+    flex-direction:column; align-items:center; width:170px; padding:12px 12px 10px;
+    background:rgba(255,253,246,.94); border:2px solid #FFD98F; border-radius:20px;
+    box-shadow:0 10px 26px rgba(180,130,50,.18); pointer-events:auto; }
+  body.menu #charPanel { display:flex; }
+  #charPanel img { width:118px; height:118px; object-fit:contain; display:block; cursor:pointer;
+    filter:drop-shadow(0 8px 10px rgba(150,110,40,.3)); }
+  #charPanel .nm { font-size:15px; font-weight:800; color:#8A5A14; letter-spacing:1px; margin-top:4px; cursor:pointer; }
+  #charPanel .lv { font-size:11px; color:#B08A4F; font-weight:700; margin:1px 0 8px; }
+  #charPanel button { width:100%; margin-top:5px; border:2px solid #FFD98F; border-radius:999px;
+    background:linear-gradient(180deg,#FFF8E9,#FFE7BC); color:#8A5A14; font-family:inherit;
+    font-weight:800; font-size:13px; letter-spacing:1px; padding:7px 0; cursor:pointer; }
+  #charPanel button:active { transform:translateY(1px); }
+  #charPanel #cpPrev { font-size:12px; padding:5px 0; color:#A5844C; }
+  @media (max-width:640px){
+    #charPanel { width:126px; left:10px; top:10px; padding:9px 9px 8px; }
+    #charPanel img { width:84px; height:84px; }
+    #charPanel .nm { font-size:13px; }
+    #charPanel button { font-size:12px; padding:6px 0; }
+  }
+
   /* 人物简介弹层 */
   #charCard { position:fixed; inset:0; z-index:34; display:none; align-items:center; justify-content:center;
     background:rgba(60,40,15,.42); backdrop-filter:blur(3px); }
@@ -338,6 +360,13 @@
 <!-- 开始界面 -->
 <div class="overlay" id="startOverlay">
   <div id="frogStage"></div>
+<div id="charPanel">
+  <img id="cpImg" alt="奶蛙">
+  <div class="nm" id="cpName"></div>
+  <div class="lv" id="cpLv"></div>
+  <button id="cpNext">切换人物 ›</button>
+  <button id="cpPrev" title="上一位">‹ 上一位</button>
+</div>
   <div class="card">
     <h1 id="gameTitle">合成大奶蛙</h1>
     <div class="sub">3D 物理合成 · 奶萌出击</div>
@@ -1754,61 +1783,75 @@ function frogSay(el, text, silent){
 frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.max(state.shake,0.10); });
 
 (function buildStage(){
-  const stage=$('frogStage');
+  const panel=$('charPanel'), pic=$('cpImg'), nmEl=$('cpName'), lvEl=$('cpLv');
 
-  /* 人物档案：名字 / 合成规则 / 网文风经历 / 口头禅 */
+  /* 11 阶人物档案：名字 / 合成规则 / 人物经历 / 口头禅 */
   const CAST=[
-    { lvl:0, name:'奶蛋',
-      rule:'两只奶蛋相撞 → 奶豆',
+    { lvl:0, name:'奶蛋', rule:'两只奶蛋相撞 → 奶豆',
       story:'奶家老宅最角落的一颗蛋。三年前族中测资，判定它“无合体之相”，终生只是颗蛋。它没辩解，只是每天比别的蛋多滚三圈。',
       quote:'“我不是不会合，我是在等一个愿意撞我的人。”' },
-    { lvl:2, name:'奶鼠',
-      rule:'两只奶鼠相撞 → 奶鸡',
+    { lvl:1, name:'奶豆', rule:'两只奶豆相撞 → 奶鼠',
+      story:'蛋裂之后的第一形态，太小、太软，族里没人把它当回事。它在自己壳上刻了一行字：总有一天，这棋盘要为我让位。',
+      quote:'“我不是豆，我只是还没长开。”' },
+    { lvl:2, name:'奶鼠', rule:'两只奶鼠相撞 → 奶鸡',
       story:'偷吃奶家粮仓长大，被逐出族门。谁也没想到，它靠一口尖牙咬穿了三级合成线，成了棋盘上最能挤的那一个。',
       quote:'“别看我小，我拱得动一整个角落。”' },
-    { lvl:4, name:'奶狗',
-      rule:'两只奶狗相撞 → 奶马',
+    { lvl:3, name:'奶鸡', rule:'两只奶鸡相撞 → 奶狗',
+      story:'奶家最吵的一只。清晨一声“呱”，方圆十格的奶蛙都得翻身。据说它一嗓子，把一场对局喊停过。',
+      quote:'“别睡了，天亮了。”' },
+    { lvl:4, name:'奶狗', rule:'两只奶狗相撞 → 奶马',
       story:'奶家守门人。传说它在棋盘边缘站了整整三年，只为等一只合成失败、从上面滚下来的奶蛋。',
       quote:'“你掉下来吧，我接着。”' },
-    { lvl:7, name:'奶壮',
-      rule:'两只奶壮相撞 → 天使奶蛙',
+    { lvl:5, name:'奶马', rule:'两只奶马相撞 → 奶兔',
+      story:'日行八百格，蹄下生奶气。别人靠合成进阶，它靠跑——从棋盘这头冲到那头，把挡路的全撞成一对。',
+      quote:'“让开，我要超车。”' },
+    { lvl:6, name:'奶兔', rule:'两只奶兔相撞 → 奶壮',
+      story:'跳得最高，也最怕疼。一有东西下落就先蹦开三格，因此成了棋盘上活得最久的那一只。',
+      quote:'“我不是逃，我是预判。”' },
+    { lvl:7, name:'奶壮', rule:'两只奶壮相撞 → 天使奶蛙',
       story:'族中最壮的一只。一拳能把两只同级奶蛙打进同一条合成线，奶家子弟私下叫它“拱王”。',
       quote:'“别怕，我这一下，是帮你进阶。”' },
-    { lvl:9, name:'大笑奶蛙',
-      rule:'两只大笑奶蛙相撞 → 神奶蛙',
+    { lvl:8, name:'天使奶蛙', rule:'两只天使奶蛙相撞 → 大笑奶蛙',
+      story:'长出翅膀那天，棋盘上所有奶气都朝它流。它不打架，只站在最高处，替下面的崽子挡一下乱飞的冲击波。',
+      quote:'“别慌，我在上面。”' },
+    { lvl:9, name:'大笑奶蛙', rule:'两只大笑奶蛙相撞 → 神奶蛙',
       story:'笑声能掀翻整座棋盘。冲击波扫过之处，堆积如山者尽数散开。它一笑，满屏的奶气都朝它流。',
       quote:'“哈——哈——哈——！堆那么高，是想压死谁？”' },
-    { lvl:10, name:'神奶蛙',
-      rule:'两只神奶蛙相撞 → 双双炸裂，+500 分、复活币 +1',
+    { lvl:10, name:'神奶蛙', rule:'两只神奶蛙相撞 → 双双炸裂，+500 分、复活币 +1',
       story:'奶家的传说，只在对局最深处现身。两只神奶蛙一旦相遇，天地同爆，棋盘为之一空——据说见过的人，分数都上了四位数。',
       quote:'“我出场，从来不是为了合成，是为了谢幕。”' },
   ];
-  const LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？','别挤啦','合我一下试试？'];
 
-  const list=[];
-  CAST.forEach((c,i)=>{
-    const el=document.createElement('div');
-    el.className='stageChar';
-    const img=document.createElement('img');
-    img.src='assets/image'+c.lvl+'.webp';
-    img.alt=c.name;
-    const nm=document.createElement('span');
-    nm.className='nm';
-    nm.textContent=c.name;
-    el.appendChild(img); el.appendChild(nm);
+  let idx=0;
 
-    // 纯百分比定位：不依赖任何尺寸测量
-    const fx=(i+0.5)/CAST.length;
-    const fy=(0.72+(i%3)*0.085);
-    el.style.left=(fx*100).toFixed(2)+'%';
-    el.style.top=(fy*100).toFixed(2)+'%';
-    stage.appendChild(el);
+  function render(pop){
+    const c=CAST[idx];
+    pic.src='assets/image'+c.lvl+'.webp';
+    pic.alt=c.name;
+    nmEl.textContent=c.name;
+    lvEl.textContent='第 '+(c.lvl+1)+' 阶 / 共 11 阶';
+    if(pop){
+      pic.style.transition='none';
+      pic.style.transform='scale(.82)';
+      requestAnimationFrame(()=>{
+        pic.style.transition='transform .28s cubic-bezier(.2,1.6,.4,1)';
+        pic.style.transform='scale(1)';
+      });
+    }
+  }
+  render(false);
 
-    el.addEventListener('pointerdown', (ev)=>{ ev.stopPropagation(); });
-    el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openBio(c); });
-
-    list.push({ el, img, data:c, fx, fy, tfx:fx, tfy:fy,
-                face:1, ph:i*1.1, moving:false, wait:1.5+Math.random()*3 });
+  $('cpNext').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    idx=(idx+1)%CAST.length;
+    render(true);
+    try{ SFX.unlock(); SFX.pop(4); }catch(err){}
+  });
+  $('cpPrev').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    idx=(idx+CAST.length-1)%CAST.length;
+    render(true);
+    try{ SFX.unlock(); SFX.pop(3); }catch(err){}
   });
 
   /* 人物简介弹层 */
@@ -1822,67 +1865,19 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
     cc.classList.add('show');
     try{ SFX.pop(3); }catch(e){}
   }
+  pic.addEventListener('pointerdown', (ev)=>{ ev.stopPropagation(); });
+  pic.addEventListener('click', (ev)=>{ ev.stopPropagation(); openBio(CAST[idx]); });
+  nmEl.addEventListener('click', (ev)=>{ ev.stopPropagation(); openBio(CAST[idx]); });
+
   $('bioClose').addEventListener('click', ()=>cc.classList.remove('show'));
   cc.addEventListener('click', (e)=>{ if(e.target===cc) cc.classList.remove('show'); });
 
-  /* 走动：位置全部用 0~1 的比例，速度按比例走 */
-  let last=0;
-  function loop(ts){
-    requestAnimationFrame(loop);
-    const dt=Math.min((ts-last)/1000||0.016, 0.05); last=ts;
-    if(state.mode!=='menu') return;
-    for(const c of list){
-      c.ph+=dt;
-      c.wait-=dt;
-      if(!c.moving && c.wait<=0){
-        c.tfx=Math.min(0.94, Math.max(0.06, c.fx+(Math.random()-0.5)*0.26));
-        c.tfy=Math.min(0.90, Math.max(0.42, c.fy+(Math.random()-0.5)*0.12));
-        c.wait=2.6+Math.random()*3.4;
-      }
-      const dx=c.tfx-c.fx, dy=c.tfy-c.fy;
-      const d=Math.hypot(dx,dy);
-      let bob;
-      if(d>0.004){
-        c.moving=true;
-        const step=Math.min(d, 0.26*dt);
-        c.fx+=dx/d*step; c.fy+=dy/d*step;
-        if(Math.abs(dx)>0.0004) c.face=dx<0?-1:1;
-        bob=-Math.abs(Math.sin(c.ph*11))*7;
-      }else{
-        c.moving=false;
-        bob=Math.sin(c.ph*2.2)*2.0;
-      }
-      c.el.style.left=(c.fx*100).toFixed(2)+'%';
-      c.el.style.top=(c.fy*100).toFixed(2)+'%';
-      c.img.style.transform='scaleX('+c.face+') translateY('+bob.toFixed(1)+'px)';
-    }
-  }
-  requestAnimationFrame(loop);
-
-  /* 点空白处 → 最近的角色走过去 */
-  $('startOverlay').addEventListener('pointerdown', (e)=>{
-    if(e.target.closest('.card')) return;
-    const r=stage.getBoundingClientRect();
-    const W=(r.width||window.innerWidth), H=(r.height||window.innerHeight);
-    if(!W||!H) return;
-    const px=(e.clientX-r.left)/W, py=(e.clientY-r.top)/H;
-    let best=null, bd=1e9;
-    for(const c of list){
-      const dd=(c.fx-px)*(c.fx-px)+(c.fy-py)*(c.fy-py);
-      if(dd<bd){ bd=dd; best=c; }
-    }
-    if(!best) return;
-    best.tfx=Math.min(0.94, Math.max(0.06, px));
-    best.tfy=Math.min(0.92, Math.max(0.40, py));
-    best.wait=4;
-  });
-
-  /* 语录气泡 */
+  /* 偶尔让当前人物冒一句 */
+  const LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？'];
   setInterval(()=>{
     if(state.mode!=='menu') return;
-    const c=list[Math.floor(Math.random()*list.length)];
-    if(c) frogSay(c.el, LINES[Math.floor(Math.random()*LINES.length)], true);
-  }, 4200);
+    frogSay(panel, LINES[Math.floor(Math.random()*LINES.length)], true);
+  }, 5200);
 })();
 
 /* ---------- PK 入口 ---------- */

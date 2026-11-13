@@ -763,8 +763,8 @@ function getCharMat(lvl){
        在剪影内侧叠加一圈暖色边缘光（等价于菲涅尔边缘光的贴图版做法） */
     mat.userData.rim={
       uRimTexel:{ value:new THREE.Vector2(1.7/512, 1.7/512) },
-      uRimColor:{ value:new THREE.Color(0xFFE39A) },
-      uRimAmount:{ value:0.55 },
+      uRimColor:{ value:new THREE.Color(0xFFD98A) },
+      uRimAmount:{ value:0.20 },
     };
     mat.onBeforeCompile=(shader)=>{
       Object.assign(shader.uniforms, mat.userData.rim);
@@ -830,7 +830,7 @@ const shadowMat=new THREE.MeshBasicMaterial({
  *   ③ 合成冲击波：ShaderMaterial 绘制的环形能量波
  * ============================================================ */
 const POST={
-  enabled:true, threshold:0.80, strength:0.85, radius:1.0, exposure:1.06,
+  enabled:true, threshold:1.02, strength:0.30, radius:1.0, exposure:1.0,
   ripples:[], flash:0, ready:false,
 };
 let rtScene=null, rtBlurA=null, rtBlurB=null, postScene=null, postCam=null, postQuad=null;
@@ -880,7 +880,7 @@ void main(){
     float radius=r.z*0.90;
     float band=exp(-pow((d-radius)*15.0,2.0));
     float fade=1.0-clamp(r.z,0.0,1.0);
-    disp+=normalize(dv+vec2(1e-5))*sin((d-radius)*44.0)*band*fade*r.w*0.014;
+    disp+=normalize(dv+vec2(1e-5))*sin((d-radius)*44.0)*band*fade*r.w*0.007;
   }
   vec3 col;
   if(length(disp)>0.00001){
@@ -897,13 +897,18 @@ void main(){
   gl_FragColor=vec4(col,1.0);
 }`;
 
+function postSize(){
+  // 后处理缓冲按 1.5 倍封顶，避免高分屏上一次性吃下几十兆显存
+  const dpr=Math.min(renderer.getPixelRatio(), 1.5);
+  return { w:Math.max(2,Math.round(innerWidth*dpr)), h:Math.max(2,Math.round(innerHeight*dpr)) };
+}
 function initPost(){
-  const s=new THREE.Vector2(); renderer.getDrawingBufferSize(s);
-  rtScene=new THREE.WebGLRenderTarget(s.x,s.y,{
+  const s=postSize();
+  rtScene=new THREE.WebGLRenderTarget(s.w,s.h,{
     type:THREE.HalfFloatType, minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
     depthBuffer:true, stencilBuffer:false,
   });
-  const bw=Math.max(1,Math.round(s.x*0.5)), bh=Math.max(1,Math.round(s.y*0.5));
+  const bw=Math.max(1,Math.round(s.w*0.5)), bh=Math.max(1,Math.round(s.h*0.5));
   const halfOpt={ type:THREE.HalfFloatType, minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter,
                   depthBuffer:false, stencilBuffer:false };
   rtBlurA=new THREE.WebGLRenderTarget(bw,bh,halfOpt);
@@ -933,9 +938,9 @@ function initPost(){
 }
 function resizePost(){
   if(!POST.ready) return;
-  const s=new THREE.Vector2(); renderer.getDrawingBufferSize(s);
-  rtScene.setSize(s.x,s.y);
-  const bw=Math.max(1,Math.round(s.x*0.5)), bh=Math.max(1,Math.round(s.y*0.5));
+  const s=postSize();
+  rtScene.setSize(s.w,s.h);
+  const bw=Math.max(1,Math.round(s.w*0.5)), bh=Math.max(1,Math.round(s.h*0.5));
   rtBlurA.setSize(bw,bh); rtBlurB.setSize(bw,bh);
 }
 function renderFrame(){
@@ -977,7 +982,7 @@ function postPulse(worldPos, strength){
   const v=worldPos.clone().project(camera);
   POST.ripples.push({ x:v.x*0.5+0.5, y:v.y*0.5+0.5, t:performance.now()/1000, a:strength });
   while(POST.ripples.length>4) POST.ripples.shift();
-  POST.flash=Math.min(0.30, POST.flash+strength*0.12);
+  POST.flash=Math.min(0.10, POST.flash+strength*0.035);
 }
 
 /* 合成冲击波：手写 GLSL 的环形能量波 */
@@ -2027,7 +2032,8 @@ function tick(){
 // 拟合后记录基准相机位置
 fitCamera();
 baseCamPos.copy(camera.position);
-try{ initPost(); }catch(e){ POST.enabled=false; console.warn('后处理不可用，回退到直接渲染', e); }
+// 后处理延后初始化：先保证首屏与「开始游戏」响应，再挂着色器管线
+setTimeout(()=>{ try{ initPost(); }catch(e){ POST.enabled=false; console.warn('后处理不可用，回退到直接渲染', e); } }, 700);
 addEventListener('resize', ()=>{ fitCamera(); baseCamPos.copy(camera.position); resizePost(); });
 
 refreshNextUI();

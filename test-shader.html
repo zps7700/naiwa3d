@@ -78,7 +78,7 @@
   body.menu #chainBar, body.menu #loadingTip { opacity:0; pointer-events:none; transition:opacity .3s; }
   /* 开始界面：游戏角色站在奶油棋盘上 */
   #startOverlay {
-    background:radial-gradient(circle at 50% 42%, rgba(255,253,246,.62), rgba(255,238,208,.78) 78%);
+    background:#FFF4E0;
     backdrop-filter:none;
   }
   #startOverlay .card { box-shadow:0 24px 70px rgba(150,110,40,.30), 0 0 0 1px rgba(255,255,255,.6) inset; }
@@ -86,8 +86,12 @@
   .stageChar { position:absolute; pointer-events:auto; cursor:pointer; will-change:transform;
     filter:drop-shadow(0 10px 12px rgba(150,110,40,.26)); text-align:center; }
   .stageChar img { width:100%; display:block; transform-origin:50% 100%; }
-  .stageChar .nm { display:block; margin-top:2px; font-size:12px; font-weight:800; color:#8A5A14;
-    letter-spacing:1px; text-shadow:0 1px 0 #fff, 0 0 6px rgba(255,255,255,.9); white-space:nowrap; }
+  .stageChar .nm { display:inline-block; margin-top:4px; padding:3px 11px; border-radius:999px;
+    background:rgba(255,255,255,.95); border:1px solid #FFD79A; box-shadow:0 2px 6px rgba(180,130,50,.18);
+    font-size:12px; font-weight:800; color:#8A5A14; letter-spacing:1px;
+    text-shadow:none; white-space:nowrap; }
+  .stageChar:active .nm, .stageChar:hover .nm { background:#FFE9BE; color:#B45C10; border-color:#F0B457; }
+  .stageChar:hover { filter:drop-shadow(0 12px 16px rgba(150,110,40,.4)) brightness(1.04); }
 
   /* 人物简介弹层 */
   #charCard { position:fixed; inset:0; z-index:34; display:none; align-items:center; justify-content:center;
@@ -1800,6 +1804,7 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
                  face:1, ph:i*1.1, moving:false };
     list.push(item);
 
+    el.addEventListener('pointerdown', (ev)=>{ ev.stopPropagation(); });
     el.addEventListener('click', (ev)=>{
       ev.stopPropagation();
       openBio(c);

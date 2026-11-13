@@ -1756,40 +1756,36 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
 (function buildStage(){
   const stage=$('frogStage');
 
-  /* 人物档案：名字 / 定位 / 网文风经历 / 口头禅 */
+  /* 人物档案：名字 / 合成规则 / 网文风经历 / 口头禅 */
   const CAST=[
-    { lvl:0, name:'奶蛋', base:74,
+    { lvl:0, name:'奶蛋',
       rule:'两只奶蛋相撞 → 奶豆',
       story:'奶家老宅最角落的一颗蛋。三年前族中测资，判定它“无合体之相”，终生只是颗蛋。它没辩解，只是每天比别的蛋多滚三圈。',
       quote:'“我不是不会合，我是在等一个愿意撞我的人。”' },
-    { lvl:2, name:'奶鼠', base:90,
+    { lvl:2, name:'奶鼠',
       rule:'两只奶鼠相撞 → 奶鸡',
       story:'偷吃奶家粮仓长大，被逐出族门。谁也没想到，它靠一口尖牙咬穿了三级合成线，成了棋盘上最能挤的那一个。',
       quote:'“别看我小，我拱得动一整个角落。”' },
-    { lvl:4, name:'奶狗', base:106,
+    { lvl:4, name:'奶狗',
       rule:'两只奶狗相撞 → 奶马',
       story:'奶家守门人。传说它在棋盘边缘站了整整三年，只为等一只合成失败、从上面滚下来的奶蛋。',
       quote:'“你掉下来吧，我接着。”' },
-    { lvl:7, name:'奶壮', base:126,
+    { lvl:7, name:'奶壮',
       rule:'两只奶壮相撞 → 天使奶蛙',
       story:'族中最壮的一只。一拳能把两只同级奶蛙打进同一条合成线，奶家子弟私下叫它“拱王”。',
       quote:'“别怕，我这一下，是帮你进阶。”' },
-    { lvl:9, name:'大笑奶蛙', base:148,
+    { lvl:9, name:'大笑奶蛙',
       rule:'两只大笑奶蛙相撞 → 神奶蛙',
       story:'笑声能掀翻整座棋盘。冲击波扫过之处，堆积如山者尽数散开。它一笑，满屏的奶气都朝它流。',
       quote:'“哈——哈——哈——！堆那么高，是想压死谁？”' },
-    { lvl:10, name:'神奶蛙', base:168,
+    { lvl:10, name:'神奶蛙',
       rule:'两只神奶蛙相撞 → 双双炸裂，+500 分、复活币 +1',
       story:'奶家的传说，只在对局最深处现身。两只神奶蛙一旦相遇，天地同爆，棋盘为之一空——据说见过的人，分数都上了四位数。',
       quote:'“我出场，从来不是为了合成，是为了谢幕。”' },
   ];
-
-  const SPAWN_LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？','别挤啦','合我一下试试？'];
+  const LINES=['呱！','呱呱~','奶~','奶——','嘿嘿','呱？','别挤啦','合我一下试试？'];
 
   const list=[];
-  const W0=()=>Math.round(stage.getBoundingClientRect().width)||window.innerWidth;
-  const H0=()=>Math.round(stage.getBoundingClientRect().height)||window.innerHeight;
-
   CAST.forEach((c,i)=>{
     const el=document.createElement('div');
     el.className='stageChar';
@@ -1800,52 +1796,20 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
     nm.className='nm';
     nm.textContent=c.name;
     el.appendChild(img); el.appendChild(nm);
-    // 先按百分比铺开：即使此刻量不到容器尺寸，也绝不会堆在左上角
-    el.style.left=((i+0.5)/CAST.length*100)+'%';
-    el.style.top=(74+(i%3)*8.5)+'%';
+
+    // 纯百分比定位：不依赖任何尺寸测量
+    const fx=(i+0.5)/CAST.length;
+    const fy=(0.72+(i%3)*0.085);
+    el.style.left=(fx*100).toFixed(2)+'%';
+    el.style.top=(fy*100).toFixed(2)+'%';
     stage.appendChild(el);
 
-    const item={ el, img, data:c, w:0, h:0, x:0, y:0, tx:0, ty:0,
-                 face:1, ph:i*1.1, moving:false };
-    list.push(item);
-
     el.addEventListener('pointerdown', (ev)=>{ ev.stopPropagation(); });
-    el.addEventListener('click', (ev)=>{
-      ev.stopPropagation();
-      openBio(c);
-    });
-    const fix=()=>{ item.h=el.offsetHeight||c.base; };
-    img.addEventListener('load', fix);
-    if(img.complete) setTimeout(fix,0);
-  });
+    el.addEventListener('click', (ev)=>{ ev.stopPropagation(); openBio(c); });
 
-  function layout(){
-    const rect=stage.getBoundingClientRect();
-    const W=Math.round(rect.width)||window.innerWidth;
-    const H=Math.round(rect.height)||window.innerHeight;
-    if(W<50||H<50) return false;                    // 容器还没布局好，先不摆
-    const scale=Math.min(1, W/760);
-    list.forEach((it,i)=>{
-      const c=it.data;
-      it.w=Math.max(46, Math.round(c.base*scale));
-      it.el.style.width=it.w+'px';
-      it.el.style.left='0px'; it.el.style.top='0px';   // 切到像素定位
-      const fx=(i+0.5)/list.length;                 // 横向均匀，纵向错落
-      it.x=fx*W; it.tx=it.x;
-      it.y=H*(0.74+(i%3)*0.085); it.ty=it.y;
-      it.h=it.el.offsetHeight||it.w;
-      it.wait=1.5+Math.random()*3;
-    });
-    return true;
-  }
-  function layoutSoon(){
-    requestAnimationFrame(()=>{
-      if(!layout()) setTimeout(layout, 120);
-    });
-  }
-  layoutSoon();
-  if(document.readyState!=='complete') window.addEventListener('load', layout);
-  window.addEventListener('resize', ()=>{ layout(); });
+    list.push({ el, img, data:c, fx, fy, tfx:fx, tfy:fy,
+                face:1, ph:i*1.1, moving:false, wait:1.5+Math.random()*3 });
+  });
 
   /* 人物简介弹层 */
   const cc=$('charCard');
@@ -1861,36 +1825,36 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
   $('bioClose').addEventListener('click', ()=>cc.classList.remove('show'));
   cc.addEventListener('click', (e)=>{ if(e.target===cc) cc.classList.remove('show'); });
 
-  /* 走路 + 呼吸 */
-  let last=0, laid=false;
+  /* 走动：位置全部用 0~1 的比例，速度按比例走 */
+  let last=0;
   function loop(ts){
     requestAnimationFrame(loop);
     const dt=Math.min((ts-last)/1000||0.016, 0.05); last=ts;
     if(state.mode!=='menu') return;
-    if(!laid) laid=layout();                        // 尺寸就绪后补一次排布
-    const W=W0(), H=H0();
     for(const c of list){
       c.ph+=dt;
-      // 没人点它的时候，自己随机溜达
-      c.wait=(c.wait||0)-dt;
+      c.wait-=dt;
       if(!c.moving && c.wait<=0){
-        c.tx=Math.min(Math.max(c.x+(Math.random()-0.5)*W*0.34, c.w*0.5), W-c.w*0.5);
-        c.ty=Math.min(Math.max(c.y+(Math.random()-0.5)*H*0.16, H*0.42), H*0.94);
+        c.tfx=Math.min(0.94, Math.max(0.06, c.fx+(Math.random()-0.5)*0.26));
+        c.tfy=Math.min(0.90, Math.max(0.42, c.fy+(Math.random()-0.5)*0.12));
         c.wait=2.6+Math.random()*3.4;
       }
-      const dx=c.tx-c.x, dy=c.ty-c.y;
+      const dx=c.tfx-c.fx, dy=c.tfy-c.fy;
       const d=Math.hypot(dx,dy);
-      let bob=Math.sin(c.ph*2.2)*2.0;
-      if(d>3){
+      let bob;
+      if(d>0.004){
         c.moving=true;
-        const step=Math.min(d, 240*dt);
-        c.x+=dx/d*step; c.y+=dy/d*step;
-        c.face=dx<0?-1:1;
-        bob=-Math.abs(Math.sin(c.ph*11))*6;
-      }else{ c.moving=false; }
-      if(!laid){ continue; }                      // 还没量到尺寸：保持百分比初始位置
-      c.el.style.transform='translate('+c.x+'px,'+c.y+'px) translate(-50%,-100%) translateY('+bob+'px)';
-      c.img.style.transform='scaleX('+c.face+') rotate('+(c.moving? Math.sin(c.ph*11)*4 : 0)+'deg)';
+        const step=Math.min(d, 0.26*dt);
+        c.fx+=dx/d*step; c.fy+=dy/d*step;
+        if(Math.abs(dx)>0.0004) c.face=dx<0?-1:1;
+        bob=-Math.abs(Math.sin(c.ph*11))*7;
+      }else{
+        c.moving=false;
+        bob=Math.sin(c.ph*2.2)*2.0;
+      }
+      c.el.style.left=(c.fx*100).toFixed(2)+'%';
+      c.el.style.top=(c.fy*100).toFixed(2)+'%';
+      c.img.style.transform='scaleX('+c.face+') translateY('+bob.toFixed(1)+'px)';
     }
   }
   requestAnimationFrame(loop);
@@ -1899,22 +1863,25 @@ frogBuddy.addEventListener('click', ()=>{ frogSay(frogBuddy); state.shake=Math.m
   $('startOverlay').addEventListener('pointerdown', (e)=>{
     if(e.target.closest('.card')) return;
     const r=stage.getBoundingClientRect();
-    const px=e.clientX-r.left, py=e.clientY-r.top;
+    const W=(r.width||window.innerWidth), H=(r.height||window.innerHeight);
+    if(!W||!H) return;
+    const px=(e.clientX-r.left)/W, py=(e.clientY-r.top)/H;
     let best=null, bd=1e9;
     for(const c of list){
-      const dd=(c.x-px)*(c.x-px)+(c.y-py)*(c.y-py);
+      const dd=(c.fx-px)*(c.fx-px)+(c.fy-py)*(c.fy-py);
       if(dd<bd){ bd=dd; best=c; }
     }
     if(!best) return;
-    best.tx=Math.min(Math.max(px,best.w*0.5), W0()-best.w*0.5);
-    best.ty=Math.min(Math.max(py,H0()*0.30), H0()-8);
+    best.tfx=Math.min(0.94, Math.max(0.06, px));
+    best.tfy=Math.min(0.92, Math.max(0.40, py));
+    best.wait=4;
   });
 
-  /* 语录气泡：每隔几秒随机一只说一句 */
+  /* 语录气泡 */
   setInterval(()=>{
     if(state.mode!=='menu') return;
     const c=list[Math.floor(Math.random()*list.length)];
-    if(c) frogSay(c.el, SPAWN_LINES[Math.floor(Math.random()*SPAWN_LINES.length)], true);
+    if(c) frogSay(c.el, LINES[Math.floor(Math.random()*LINES.length)], true);
   }, 4200);
 })();
 
